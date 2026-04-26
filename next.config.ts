@@ -1,8 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  reactStrictMode: true,
-  serverExternalPackages: ["@resvg/resvg-js"]
+  reactStrictMode: true
 };
 
 export default nextConfig;
