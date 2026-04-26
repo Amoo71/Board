@@ -1,9 +1,8 @@
 // Amo's Board — Scriptable iOS widget
-// 1) Deploy the Next.js app to Vercel.
-// 2) Replace the BASE_URL below with your Vercel URL, or set the widget parameter to your URL.
-// 3) Add this script as a medium or large Scriptable widget.
+// Deploy the Next.js app to Vercel, then use this script as a medium or large Scriptable widget.
+// Optional: set the widget parameter to another Vercel URL if you create a new deployment/domain.
 
-const DEFAULT_BASE_URL = "https://YOUR-VERCEL-APP.vercel.app";
+const DEFAULT_BASE_URL = "https://board-mcrxmrivq-amoo71s-projects.vercel.app";
 const inputBase = (args.widgetParameter || DEFAULT_BASE_URL).trim().replace(/\/$/, "");
 const family = config.widgetFamily || "medium";
 
@@ -33,8 +32,8 @@ try {
   title.font = Font.boldSystemFont(18);
   title.textColor = Color.white();
   widget.addSpacer(8);
-  const message = widget.addText("Could not load the Vercel preview. Check BASE_URL or the widget parameter.");
-  message.font = Font.systemFont(12);
+  const message = widget.addText(`Could not load preview. URL: ${previewURL}`);
+  message.font = Font.systemFont(11);
   message.textColor = new Color("#94a3b8");
 }
 
