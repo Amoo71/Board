@@ -1,6 +1,5 @@
 // Amo's Board — Scriptable iOS widget
 // Loads /api/board JSON and draws the widget directly on iOS.
-// If loading fails, it shows the real HTTP status and response preview for debugging.
 
 const DEFAULT_BASE_URL = "https://board-mcrxmrivq-amoo71s-projects.vercel.app";
 const inputBase = (args.widgetParameter || DEFAULT_BASE_URL).trim().replace(/\/$/, "");
@@ -94,12 +93,10 @@ async function renderBoard(board, width, height) {
     return ctx.getImage();
   }
 
-  for (const item of items) {
-    if (!item || !item.type) continue;
-    if (item.type === "path") drawPath(ctx, item, sx, sy, scale);
-    if (item.type === "text") drawText(ctx, item, sx, sy, scale);
-    if (item.type === "image") await drawImage(ctx, item, sx, sy);
-  }
+  // Draw paths first so text/images stay readable above drawings.
+  for (const item of items) if (item && item.type === "path") drawPath(ctx, item, sx, sy, scale);
+  for (const item of items) if (item && item.type === "image") await drawImage(ctx, item, sx, sy);
+  for (const item of items) if (item && item.type === "text") drawText(ctx, item, sx, sy, scale);
 
   return ctx.getImage();
 }
@@ -124,21 +121,47 @@ function strokeRound(ctx, x, y, w, h, radius, hex, alpha, lineWidth) {
   path.closeSubpath();
   ctx.setStrokeColor(new Color(hex, alpha));
   ctx.setLineWidth(lineWidth);
-  ctx.strokePath(path);
+  ctx.addPath(path);
+  ctx.strokePath();
 }
 
 function drawPath(ctx, item, sx, sy, scale) {
   const points = Array.isArray(item.points) ? item.points : [];
   if (points.length < 1) return;
+
+  const strokeWidth = Math.max(2, Number(item.width || 8) * scale);
+  const color = item.tool === "eraser" ? "#182033" : (item.color || "#f8fafc");
+  const alpha = Math.max(0.05, Math.min(1, Number(item.opacity || 1)));
+
+  ctx.setStrokeColor(new Color(color, alpha));
+  ctx.setFillColor(new Color(color, alpha));
+  ctx.setLineWidth(strokeWidth);
+
+  // Tiny strokes and taps are drawn as dots so they are visible in the widget.
+  if (points.length === 1) {
+    drawDot(ctx, points[0].x * sx, points[0].y * sy, strokeWidth / 2, color, alpha);
+    return;
+  }
+
   const path = new Path();
   path.move(new Point(points[0].x * sx, points[0].y * sy));
   for (let i = 1; i < points.length; i++) {
-    path.addLine(new Point(points[i].x * sx, points[i].y * sy));
+    const x = Number(points[i].x) * sx;
+    const y = Number(points[i].y) * sy;
+    path.addLine(new Point(x, y));
   }
-  const color = item.tool === "eraser" ? "#101827" : (item.color || "#f8fafc");
-  ctx.setStrokeColor(new Color(color, Number(item.opacity || 1)));
-  ctx.setLineWidth(Math.max(1, Number(item.width || 8) * scale));
-  ctx.strokePath(path);
+  ctx.addPath(path);
+  ctx.strokePath();
+
+  // Round off the line ends. Scriptable strokes can look squared otherwise.
+  drawDot(ctx, points[0].x * sx, points[0].y * sy, strokeWidth / 2, color, alpha);
+  const last = points[points.length - 1];
+  drawDot(ctx, last.x * sx, last.y * sy, strokeWidth / 2, color, alpha);
+}
+
+function drawDot(ctx, x, y, radius, hex, alpha) {
+  ctx.setFillColor(new Color(hex, alpha));
+  ctx.fillEllipse(new Rect(x - radius, y - radius, radius * 2, radius * 2));
 }
 
 function drawText(ctx, item, sx, sy, scale) {
