@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { EMPTY_BOARD } from "@/lib/board";
-import { isWriteAllowed, readBoard, resetBoard, writeBoard } from "@/lib/storage";
+import { getStorageMode, isWriteAllowed, readBoard, resetBoard, writeBoard } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,17 +11,22 @@ const jsonHeaders = {
   "Access-Control-Allow-Origin": "*"
 };
 
+function addStorageMeta(board: object) {
+  const storage = getStorageMode();
+  return {
+    ...board,
+    _storage: storage,
+    warning: storage.persistent ? undefined : "Persistent storage is not configured. Add Upstash Redis in Vercel."
+  };
+}
+
 export async function GET() {
   try {
     const board = await readBoard();
-    return NextResponse.json(board, { headers: jsonHeaders });
-  } catch (error) {
+    return NextResponse.json(addStorageMeta(board), { headers: jsonHeaders });
+  } catch {
     return NextResponse.json(
-      {
-        ...EMPTY_BOARD,
-        updatedAt: new Date().toISOString(),
-        warning: "Storage unavailable, returned fallback board. Check Redis/Upstash environment variables in Vercel."
-      },
+      addStorageMeta({ ...EMPTY_BOARD, updatedAt: new Date().toISOString() }),
       { headers: jsonHeaders }
     );
   }
@@ -35,10 +40,10 @@ export async function PUT(req: NextRequest) {
   try {
     const input = await req.json().catch(() => null);
     const board = await writeBoard(input ?? {});
-    return NextResponse.json({ ok: true, board }, { headers: jsonHeaders });
-  } catch (error) {
+    return NextResponse.json({ ok: true, board: addStorageMeta(board) }, { headers: jsonHeaders });
+  } catch {
     return NextResponse.json(
-      { ok: false, error: "Could not save board. Check Redis/Upstash environment variables in Vercel." },
+      { ok: false, error: "Could not save board.", _storage: getStorageMode() },
       { status: 500, headers: jsonHeaders }
     );
   }
@@ -51,10 +56,10 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const board = await resetBoard();
-    return NextResponse.json({ ok: true, board }, { headers: jsonHeaders });
-  } catch (error) {
+    return NextResponse.json({ ok: true, board: addStorageMeta(board) }, { headers: jsonHeaders });
+  } catch {
     return NextResponse.json(
-      { ok: false, error: "Could not reset board. Check Redis/Upstash environment variables in Vercel." },
+      { ok: false, error: "Could not reset board.", _storage: getStorageMode() },
       { status: 500, headers: jsonHeaders }
     );
   }
