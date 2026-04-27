@@ -1,6 +1,6 @@
 // Amo's Board — Scriptable iOS widget
-// This version does NOT use /api/preview. It loads /api/board JSON and draws the widget directly on iOS.
-// Use as a medium or large Scriptable widget. Optional widget parameter: another Vercel base URL.
+// Loads /api/board JSON and draws the widget directly on iOS.
+// If loading fails, it shows the real HTTP status and response preview for debugging.
 
 const DEFAULT_BASE_URL = "https://board-mcrxmrivq-amoo71s-projects.vercel.app";
 const inputBase = (args.widgetParameter || DEFAULT_BASE_URL).trim().replace(/\/$/, "");
@@ -23,7 +23,22 @@ widget.backgroundColor = new Color("#05070b");
 try {
   const req = new Request(boardURL);
   req.timeoutInterval = 20;
-  const board = await req.loadJSON();
+  req.headers = { "Accept": "application/json" };
+  const raw = await req.loadString();
+  const status = req.response ? req.response.statusCode : "unknown";
+  const contentType = req.response && req.response.headers ? String(req.response.headers["content-type"] || req.response.headers["Content-Type"] || "") : "";
+
+  if (status < 200 || status >= 300) {
+    throw new Error(`HTTP ${status} ${contentType}\n${raw.slice(0, 260)}`);
+  }
+
+  let board;
+  try {
+    board = JSON.parse(raw);
+  } catch (_) {
+    throw new Error(`Not JSON. HTTP ${status} ${contentType}\n${raw.slice(0, 260)}`);
+  }
+
   widget.backgroundImage = await renderBoard(board, w, h);
 } catch (error) {
   widget.setPadding(16, 16, 16, 16);
@@ -31,9 +46,13 @@ try {
   title.font = Font.boldSystemFont(18);
   title.textColor = Color.white();
   widget.addSpacer(8);
-  const message = widget.addText(`Could not load board JSON. URL: ${boardURL}`);
-  message.font = Font.systemFont(11);
+  const message = widget.addText(String(error).slice(0, 520));
+  message.font = Font.systemFont(10);
   message.textColor = new Color("#94a3b8");
+  widget.addSpacer(6);
+  const urlText = widget.addText(boardURL);
+  urlText.font = Font.systemFont(8);
+  urlText.textColor = new Color("#64748b");
 }
 
 if (!config.runsInWidget) {
